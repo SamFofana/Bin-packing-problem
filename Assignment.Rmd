@@ -34,51 +34,78 @@ As told before I develop two solutions:
 ### MathProg
 First of all, I pass from the theory to the develop of the model in MathProg. This part could be done on a simple .txt editor or directly here in R Studio. 
 ```{r}
-bins_problem <- '
 
-/* The bin packing problem is aimed to pack I = {1,...,m}
-elements of different volumes v[i] into bins each with a fixed capacity V
+model1 <- '
+
+/* The bin packing problem is aimed to pack I = {1,...,m} 
+elements of different volumes v[i] into bins each with a fixed capacity V 
 in a way that minimizes the number of bins used. */
 
-  param m, integer, > 0;   /* number of elements to pack */
-  set I := 1..m;           /* set of elements */
-  param v{i in 1..m}, > 0; /* v[i] is volume of element i */
-  param V, > 0;            /* bin capacity */
+param m, integer, > 0;   /* number of item to pack */
+set I := 1..m;           /* set of item */
+param vol{i in 1..m}, > 0; /* vol[i] is volume of element i */
+param V, > 0;            /* bin capacity */
+  
+  
+ /* We have to define an upper bound of the number of bins that can contain all 
+ the item. The simplest approach will choose m, but it is not a good idea. 
+ To obtain a more suitable estimation an easy heuristic is used: we put items
+ into a bin while it is possible, and if the bin is full, we use another bin. 
+ The number of bins used in this way gives us a more accurate estimation. */
 
-  /* worse scenario for the number of bins used */
-  param n := m;
+param a{i in I, j in 1..m} :=
+/* a[i,j] = 1 if item i is in bin j, otherwise a[i,j] = 0 */
 
+if i = 1 and j = 1 then 1
+   /* put item 1 into bin 1 */
 
-/* set of bins */
-set J := 1..n;
+else if exists{jj in 1..j-1} a[i,jj] then 0
+   /* if item i is already in some bin, do not put it into bin j */
 
+else if sum{ii in 1..i-1} vol[ii] * a[ii,j] + vol[i] > V then 0
+   /* if item i does not fit into bin j, do not put it into bin j */
 
-/* x[i,j] = 1 means elemnt i is in bin j */
+else 1;
+   /* otherwise put item i into bin j */
+
+check{i in I}: sum{j in 1..m} a[i,j] = 1;
+/* each item must be exactly in one bin */
+
+check{j in 1..m}: sum{i in I} vol[i] * a[i,j] <= V;
+/* no bin must be overflowed */
+
+param n := sum{j in 1..m} if exists{i in I} a[i,j] then 1;
+/* determine the number of bins used by the heuristic; obviously it is
+an upper bound of the optimal solution */
+
+display n;
+
+set J := 1..n;  /* set of bins */
+  
 var x{i in I, j in J}, binary;
-
-
-/* y[j] = 1 bin j is used */
+/* x[i,j] = 1 means elemnt i is in bin j */
+  
 var y{j in J}, binary;
-
-
-
-/* each element of the set of elements must be contained in exactly one bin */
+/* y[j] = 1 bin j is used */
+  
 s.t. one{i in I}: sum{j in J} x[i,j] = 1;
-
-
+/* each element of the set of elements must be contained in exactly one bin */
+  
+s.t. lim{j in J}: sum{i in I} vol[i] * x[i,j] <= V * y[j];
 /* the content of the bin must not exceed its capacity */
-s.t. lim{j in J}: sum{i in I} v[i] * x[i,j] <= V * y[j];
 
-/* the minimization of the number of bins used is the objective function of this problem */
 minimize obj: sum{j in J} y[j];
-
+/* the minimization of the number of bins used is the objective function of this problem */
+  
   data;
 
 param m := 10;
 
-param v := 1 0.61, 2 0.96, 3 0.95, 4 0.91, 5 0.13, 6 0.53, 7 0.53, 8 0.05, 9 0.65, 10 0.66;
-
 param V := 1;
+
+param vol := 1 0.61, 2 0.96, 3 0.95, 4 0.91, 5 0.13, 6 0.53, 7 0.53, 8 0.05, 9 0.65, 10 0.66;
+
+
 
 end;
 
@@ -118,7 +145,7 @@ solve_lp <- function(model, type = "MathProg"){
 ### MathProg solve linear programming
 In conclusion, I simply called the function wrote above and insert my model and specify the type = "MathProg" 
 ```{r}
-solve_lp( bins_problem, type = "MathProg")
+solve_lp( model1, type = "MathProg")
 ```
 
 To conclude we can see a large output where: 
